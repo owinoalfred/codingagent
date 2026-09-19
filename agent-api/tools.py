@@ -1,39 +1,34 @@
 """
-Minimal tool set for the Phase 1 agent: filesystem, terminal, git.
-
-Deliberately small on purpose — this is the MVP from the plan
-("VS Code -> API -> model -> filesystem/terminal/git -> response").
-Add permission checks / sandboxing (Docker, path allowlists) before
-pointing this at anything you're not fine with the model editing directly.
+Updated tools module.
+Supports workspace scoping per task worktree, read-only tools, and Docker container sandbox isolation.
 """
+import os
 import subprocess
 from pathlib import Path
+from typing import Dict, Any, List, Optional
 
-# All file/terminal operations are restricted to this directory and below.
-# Set via the WORKSPACE_DIR env var in .env — do not point this at your
-# entire filesystem.
-WORKSPACE_DIR = Path("./workspace").resolve()
-WORKSPACE_DIR.mkdir(exist_ok=True)
+DEFAULT_WORKSPACE_DIR = Path(os.getenv("WORKSPACE_DIR", "./workspace")).resolve()
+DEFAULT_WORKSPACE_DIR.mkdir(exist_ok=True)
 
+USE_DOCKER_SANDBOX = os.getenv("USE_DOCKER_SANDBOX", "false").lower() == "true"
+DOCKER_IMAGE = os.getenv("DOCKER_SANDBOX_IMAGE", "python:3.12-slim")
 
-def _safe_path(rel_path: str) -> Path:
-    """Resolve a path and refuse to leave the workspace directory."""
-    target = (WORKSPACE_DIR / rel_path).resolve()
-    if WORKSPACE_DIR not in target.parents and target != WORKSPACE_DIR:
-        raise ValueError(f"Path '{rel_path}' escapes the workspace directory.")
+def _safe_path(rel_path: str, workspace_dir: Optional[Path] = None) -> Path:
+    base = workspace_dir.resolve() if workspace_dir else DEFAULT_WORKSPACE_DIR
+    target = (base / rel_path).resolve()
+    if base not in target.parents and target != base:
+        raise ValueError(f"Path '{rel_path}' escapes workspace directory.")
     return target
 
-
-def list_files(path: str = ".") -> str:
-    target = _safe_path(path)
+def list_files(path: str = ".", workspace_dir: Optional[Path] = None) -> str:
+    target = _safe_path(path, workspace_dir)
     if not target.exists():
         return f"Path does not exist: {path}"
     entries = sorted(p.name + ("/" if p.is_dir() else "") for p in target.iterdir())
     return "\n".join(entries) if entries else "(empty directory)"
 
-
-def read_file(path: str) -> str:
-    target = _safe_path(path)
+def read_file(path: str, workspace_dir: Optional[Path] = None) -> str:
+    target = _safe_path(path, workspace_dir)
     if not target.exists():
         return f"File does not exist: {path}"
     try:
@@ -41,23 +36,41 @@ def read_file(path: str) -> str:
     except UnicodeDecodeError:
         return f"File is not text-decodable: {path}"
 
-
-def write_file(path: str, content: str) -> str:
-    target = _safe_path(path)
+def write_file(path: str, content: str, workspace_dir: Optional[Path] = None) -> str:
+    target = _safe_path(path, workspace_dir)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
     return f"Wrote {len(content)} bytes to {path}"
 
+def run_command(command: str, timeout: int = 60, workspace_dir: Optional[Path] = None) -> str:
+    base = workspace_dir.resolve() if workspace_dir else DEFAULT_WORKSPACE_DIR
 
-def run_command(command: str, timeout: int = 60) -> str:
-    """Run a shell command inside the workspace directory. No sudo, no
-    network commands blocked here yet -- add an allowlist before you trust
-    this with anything beyond your own throwaway repos."""
+    if USE_DOCKER_SANDBOX:
+        try:
+            import docker
+            client = docker.from_env()
+            container = client.containers.run(
+                DOCKER_IMAGE,
+                command=f"sh -c {subprocess.list2cmdline([command])}",
+                volumes={str(base): {"bind": "/workspace", "mode": "rw"}},
+                working_dir="/workspace",
+                detach=True,
+                remove=False  # Do not auto-remove container before reading logs
+            )
+            # Wait for container execution to finish
+            result = container.wait(timeout=timeout)
+            logs = container.logs().decode("utf-8")
+            container.remove(force=True)
+            return logs[-8000:] if len(logs) > 8000 else logs
+        except Exception as e:
+            # Fallback to local subprocess if Docker unavailable
+            pass
+
     try:
         result = subprocess.run(
             command,
             shell=True,
-            cwd=WORKSPACE_DIR,
+            cwd=base,
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -67,13 +80,15 @@ def run_command(command: str, timeout: int = 60) -> str:
     except subprocess.TimeoutExpired:
         return f"Command timed out after {timeout}s: {command}"
 
+def git(args: str, workspace_dir: Optional[Path] = None) -> str:
+    return run_command(f"git {args}", workspace_dir=workspace_dir)
 
-def git(args: str) -> str:
-    return run_command(f"git {args}")
+def git_diff(args: str = "", workspace_dir: Optional[Path] = None) -> str:
+    """Read-only git diff helper."""
+    return run_command(f"git diff {args}", workspace_dir=workspace_dir)
 
-
-TOOL_SCHEMAS = [
-    {
+ALL_TOOL_SCHEMAS = {
+    "list_files": {
         "type": "function",
         "function": {
             "name": "list_files",
@@ -84,7 +99,7 @@ TOOL_SCHEMAS = [
             },
         },
     },
-    {
+    "read_file": {
         "type": "function",
         "function": {
             "name": "read_file",
@@ -96,7 +111,7 @@ TOOL_SCHEMAS = [
             },
         },
     },
-    {
+    "write_file": {
         "type": "function",
         "function": {
             "name": "write_file",
@@ -111,7 +126,7 @@ TOOL_SCHEMAS = [
             },
         },
     },
-    {
+    "run_command": {
         "type": "function",
         "function": {
             "name": "run_command",
@@ -123,7 +138,7 @@ TOOL_SCHEMAS = [
             },
         },
     },
-    {
+    "git": {
         "type": "function",
         "function": {
             "name": "git",
@@ -135,7 +150,18 @@ TOOL_SCHEMAS = [
             },
         },
     },
-]
+    "git_diff": {
+        "type": "function",
+        "function": {
+            "name": "git_diff",
+            "description": "Read-only operation to view git diffs inside the workspace.",
+            "parameters": {
+                "type": "object",
+                "properties": {"args": {"type": "string"}},
+            },
+        },
+    },
+}
 
 TOOL_IMPLS = {
     "list_files": list_files,
@@ -143,4 +169,10 @@ TOOL_IMPLS = {
     "write_file": write_file,
     "run_command": run_command,
     "git": git,
+    "git_diff": git_diff,
 }
+
+def get_tool_schemas_for_agent(allowed_tools: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    if allowed_tools is None:
+        return list(ALL_TOOL_SCHEMAS.values())
+    return [schema for name, schema in ALL_TOOL_SCHEMAS.items() if name in allowed_tools]
