@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+agent_memory.db
+workspace/
+workspace_*
+task-*
+.env
