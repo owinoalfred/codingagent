@@ -66,7 +66,7 @@ python3 -m uvicorn app:app --host 0.0.0.0 --port 8080 --reload
 
 ### Phase 5 — Observability Dashboard
 - **Built**: `/v1/dashboard` rendering real-time task states, pending approvals, token counts, and USD cost.
-- **Access**: Open `http://localhost:8080/v1/dashboard`
+- **Access**: Open `http://localhost:8080/v1/dashboard` (or add `?view=sentinel` / `?view=docket` to switch dashboard language)
 - **Verification Command**:
   ```bash
   python3 test_phase5.py

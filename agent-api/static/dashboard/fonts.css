@@ -1,0 +1,100 @@
+@font-face {
+  font-family: 'Recursive';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/v1/dashboard/assets/fonts/recursive-0.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Recursive';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/v1/dashboard/assets/fonts/recursive-1.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Recursive';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/v1/dashboard/assets/fonts/recursive-2.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Recursive';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/v1/dashboard/assets/fonts/recursive-3.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/v1/dashboard/assets/fonts/atkinson-hyperlegible-next-0.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/v1/dashboard/assets/fonts/atkinson-hyperlegible-next-1.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/v1/dashboard/assets/fonts/atkinson-hyperlegible-next-2.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/v1/dashboard/assets/fonts/atkinson-hyperlegible-next-3.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Work Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/v1/dashboard/assets/fonts/work-sans-0.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Work Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/v1/dashboard/assets/fonts/work-sans-1.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Work Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/v1/dashboard/assets/fonts/work-sans-2.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Work Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/v1/dashboard/assets/fonts/work-sans-3.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Alegreya Sans SC';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/v1/dashboard/assets/fonts/alegreya-sans-sc-0.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Alegreya Sans SC';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/v1/dashboard/assets/fonts/alegreya-sans-sc-1.ttf') format('truetype');
+}
+/* Commit Mono was not distributed by Google Fonts; Recursive's mono axis is used locally as the technical fallback. */
+.CommitMonoFallback { font-family: 'Recursive', ui-monospace, monospace; font-variation-settings: 'MONO' 1; }

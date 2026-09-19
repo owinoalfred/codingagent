@@ -12,10 +12,12 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import db
 import approval
+import dashboard_ui
 from tools import TOOL_IMPLS, get_tool_schemas_for_agent
 
 load_dotenv()
@@ -27,6 +29,7 @@ WORKSPACE_ROOT = Path(os.getenv("WORKSPACE_DIR", "./workspace")).resolve()
 WORKSPACE_ROOT.mkdir(exist_ok=True)
 
 app = FastAPI(title="Personal AI Engineer - Agent Gateway")
+app.mount("/v1/dashboard/assets", StaticFiles(directory=Path(__file__).parent / "static" / "dashboard"), name="dashboard-assets")
 
 class AgentRunRequest(BaseModel):
     task: str
@@ -245,73 +248,13 @@ async def reject_tool_call(approval_id: str, req: Optional[ApprovalResolveReques
     return {"status": "REJECTED", "approval_id": approval_id, "reason": reason}
 
 @app.get("/v1/dashboard", response_class=HTMLResponse)
-async def dashboard():
-    conn = db.get_db()
-
-    total_tasks = conn.execute("SELECT COUNT(*) as count FROM tasks").fetchone()["count"]
-    completed_tasks = conn.execute("SELECT COUNT(*) as count FROM tasks WHERE status = 'COMPLETED'").fetchone()["count"]
-    failed_tasks = conn.execute("SELECT COUNT(*) as count FROM tasks WHERE status IN ('FAILED', 'REVIEW_REQUIRED')").fetchone()["count"]
-    awaiting_approval = conn.execute("SELECT COUNT(*) as count FROM approvals WHERE status = 'PENDING'").fetchone()["count"]
-
-    usage = conn.execute("SELECT SUM(prompt_tokens) as p_tokens, SUM(completion_tokens) as c_tokens, SUM(cost_usd) as total_cost FROM model_usage").fetchone()
-    prompt_tokens = usage["p_tokens"] or 0
-    completion_tokens = usage["c_tokens"] or 0
-    total_tokens = prompt_tokens + completion_tokens
-    total_cost = usage["total_cost"] or 0.0
-
-    recent_tasks = conn.execute("SELECT id, title, status, created_at FROM tasks ORDER BY created_at DESC LIMIT 10").fetchall()
-    conn.close()
-
-    tasks_rows = "".join([
-        f"<tr><td>{t['id'][:8]}</td><td>{t['title']}</td><td><span class='badge {t['status']}'>{t['status']}</span></td><td>{t['created_at']}</td></tr>"
-        for t in recent_tasks
-    ])
-
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>AI Engineer Dashboard</title>
-        <style>
-            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 2rem; }}
-            h1 {{ color: #38bdf8; margin-bottom: 1.5rem; }}
-            .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }}
-            .card {{ background: #1e293b; padding: 1.5rem; border-radius: 8px; border: 1px solid #334155; }}
-            .card .number {{ font-size: 2rem; font-weight: bold; color: #38bdf8; margin-top: 0.5rem; }}
-            table {{ width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 8px; overflow: hidden; }}
-            th, td {{ padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid #334155; }}
-            th {{ background: #334155; color: #94a3b8; font-size: 0.85rem; text-transform: uppercase; }}
-            .badge {{ padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }}
-            .COMPLETED {{ background: #059669; color: white; }}
-            .FAILED, .REVIEW_REQUIRED {{ background: #dc2626; color: white; }}
-            .WAITING, .PENDING {{ background: #d97706; color: white; }}
-            .RUNNING, .PLANNING {{ background: #2563eb; color: white; }}
-        </style>
-    </head>
-    <body>
-        <h1>Personal AI Engineer — Observability Dashboard</h1>
-        <div class="grid">
-            <div class="card"><div>Total Tasks</div><div class="number">{total_tasks}</div></div>
-            <div class="card"><div>Completed</div><div class="number">{completed_tasks}</div></div>
-            <div class="card"><div>Failed / Review Required</div><div class="number">{failed_tasks}</div></div>
-            <div class="card"><div>Awaiting Approval</div><div class="number">{awaiting_approval}</div></div>
-            <div class="card"><div>Total Tokens</div><div class="number">{total_tokens:,}</div></div>
-            <div class="card"><div>Total Cost (USD)</div><div class="number">${total_cost:.4f}</div></div>
-        </div>
-
-        <h2>Recent Tasks</h2>
-        <table>
-            <thead>
-                <tr><th>Task ID</th><th>Title</th><th>Status</th><th>Created At</th></tr>
-            </thead>
-            <tbody>
-                {tasks_rows if tasks_rows else "<tr><td colspan='4'>No tasks logged yet.</td></tr>"}
-            </tbody>
-        </table>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content, status_code=200)
+async def dashboard(view: str = dashboard_ui.DEFAULT_VIEW):
+    data = dashboard_ui.collect_dashboard_data()
+    model_reachable = await dashboard_ui.model_endpoint_reachable()
+    return HTMLResponse(
+        content=dashboard_ui.render_dashboard(view, data, model_reachable),
+        status_code=200,
+    )
 
 @app.get("/v1/health")
 async def health():
