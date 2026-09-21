@@ -5,3 +5,5 @@ workspace/
 workspace_*
 task-*
 .env
+
+.venv/
