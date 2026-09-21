@@ -72,6 +72,14 @@ python3 -m uvicorn app:app --host 0.0.0.0 --port 8080 --reload
   python3 test_phase5.py
   ```
 
+### Phase 6 — Integration & End-to-End Verification Suite
+- **Built**: OpenAI-compatible `/v1/models` and `/v1/chat/completions` API endpoints in `agent-api/app.py`, automated integration test suite covering gateway API, sandbox worktrees, model router, and multi-agent E2E task execution.
+- **Verification Commands**:
+  ```bash
+  python3 test_phase2.py && python3 test_phase3.py && python3 test_phase4.py && python3 test_phase5.py
+  pytest test_api_integration.py test_sandbox_worktree.py test_model_router_cost.py test_e2e_scenarios.py -v
+  ```
+
 ---
 
 ## Phase 6 — VS Code Integration Polish & Extension Setup

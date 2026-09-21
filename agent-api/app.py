@@ -256,6 +256,69 @@ async def dashboard(view: str = dashboard_ui.DEFAULT_VIEW):
         status_code=200,
     )
 
+@app.get("/v1/models")
+async def list_models():
+    """
+    OpenAI-compatible models endpoint.
+    Proxies to upstream model server if reachable, or returns configured models.
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{MODEL_ENDPOINT}/models", timeout=5.0)
+            if resp.status_code == 200:
+                return resp.json()
+        except Exception:
+            pass
+
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": MODEL_NAME,
+                "object": "model",
+                "created": 1700000000,
+                "owned_by": "self-hosted"
+            },
+            {
+                "id": os.getenv("CHEAP_MODEL_NAME", "qwen2.5-coder-7b"),
+                "object": "model",
+                "created": 1700000000,
+                "owned_by": "self-hosted"
+            }
+        ]
+    }
+
+@app.post("/v1/chat/completions")
+async def chat_completions(req: Dict[str, Any]):
+    """
+    OpenAI-compatible chat completions proxy endpoint.
+    Allows clients like VS Code / Cline to talk directly through the Gateway.
+    """
+    model_name = req.get("model", MODEL_NAME)
+    messages = req.get("messages", [])
+
+    payload = {
+        "model": model_name,
+        "messages": messages,
+        "temperature": req.get("temperature", 0.2),
+    }
+    if req.get("tools") is not None:
+        payload["tools"] = req["tools"]
+
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(
+                f"{MODEL_ENDPOINT}/chat/completions",
+                json=payload,
+                timeout=120.0,
+            )
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Model endpoint error: {e}")
+
 @app.get("/v1/health")
 async def health():
     async with httpx.AsyncClient() as client:
