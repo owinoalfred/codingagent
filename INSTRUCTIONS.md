@@ -37,6 +37,10 @@ pip install -r requirements.txt
 python3 -m uvicorn app:app --host 0.0.0.0 --port 8080 --reload
 ```
 
+*(You can also use `docker-compose up` if you prefer running the gateway inside Docker.
+That path needs a `.env` file first — `cp .env.example .env` — because `docker-compose.yml`
+declares `env_file: .env` and will refuse to start without it.)*
+
 ---
 
 ## Phase Details & Verification Runbook
@@ -74,11 +78,32 @@ python3 -m uvicorn app:app --host 0.0.0.0 --port 8080 --reload
 
 ### Phase 6 — Integration & End-to-End Verification Suite
 - **Built**: OpenAI-compatible `/v1/models` and `/v1/chat/completions` API endpoints in `agent-api/app.py`, automated integration test suite covering gateway API, sandbox worktrees, model router, and multi-agent E2E task execution.
+- **Install test dependencies first** (from the repo root):
+  ```bash
+  pip install -r requirements-test.txt
+  ```
+  `pytest-asyncio` is required: `test_e2e_scenarios.py` uses `@pytest.mark.asyncio`, and
+  without the plugin those three tests fail to collect with
+  `async def functions are not natively supported`.
 - **Verification Commands**:
   ```bash
   python3 test_phase2.py && python3 test_phase3.py && python3 test_phase4.py && python3 test_phase5.py
   pytest test_api_integration.py test_sandbox_worktree.py test_model_router_cost.py test_e2e_scenarios.py -v
   ```
+
+### Full-Stack Smoke Test — Backend + Frontend Over Real HTTP
+The pytest suites drive the app in-process via `TestClient`. `smoke_test.py` instead boots a
+real uvicorn server on a free port and verifies **both** halves end to end: every API endpoint,
+plus the dashboard HTML for all three views and every static asset (stylesheets and all
+`@font-face` sources) that the rendered page depends on.
+
+- **Verification Command**:
+  ```bash
+  python3 smoke_test.py
+  ```
+  Exits `0` only if all checks pass. No model server is required — the gateway is expected to
+  degrade gracefully (`502`) on `/v1/chat/completions` when vLLM is offline.
+
 
 ---
 

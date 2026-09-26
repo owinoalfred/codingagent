@@ -1,0 +1,8 @@
+# Test-only dependencies (not needed to run the gateway itself).
+# Install with:  pip install -r agent-api/requirements.txt -r requirements-test.txt
+-r agent-api/requirements.txt
+
+pytest==9.1.1
+# Required by test_e2e_scenarios.py — the async orchestration tests use
+# @pytest.mark.asyncio and fail to collect without it.
+pytest-asyncio==1.4.0
